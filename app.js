@@ -1,79 +1,63 @@
 (function() {
 	"use strict"
 
-	let esprima = require('esprima')
 	let _ = require('lodash')
+	let dnode = require('dnode')
+ 
+	let lambda = (path) => {
+		let m = require(path) 
 
-	let check_func_call = (param,body) => {
-		let shadowed = false
-		return _.any(body,(expr) => {
-			if (shadowed) return
+		let AdmZip = require('adm-zip')  
 
-			if (expr.type == "ExpressionStatement") {
-				if (expr.expression.type == "CallExpression") {
-					let callee = expr.expression.callee
-					if (callee.type == "Identifier" && callee.name == param) {
-						return true
-					}
-				}
-			}
-			else if (expr.type == "BlockStatement") {
-				return check_func_call(param,expr.body)
-			}
-			else if (expr.type == "VariableDeclaration" && _.any(expr.declarations,(decl) => decl.type == "VariableDeclarator" && decl.id.type == "Identifier" && decl.id.name == param)) {
-				shadowed = true
-			}
+		let zip = new AdmZip()
+
+		zip.addLocalFolder(path)
+
+		let buf = zip.toBuffer()
+
+		let wrap = (k,fn) => {
+			return function () {
+				let array = Array.prototype.slice.call(arguments)
+				
+				return new Promise((resolve,reject) => {
+					let d = dnode.connect(3030)
+					d.on('remote',(remote) => { 
+						remote.buf(buf.toString('base64'),() => {
+							remote.hello(path,k,array,(err,result) => {
+								if (err) {
+									reject(err)
+								} else {
+									resolve(result)
+								}
+							})	
+						})
+					})
+					d.on('error',(err) => {
+						reject(err)
+					})
+				})
+			} 	
+		}
+		let o = {}
+		_.each(m,(v,k) => o[k] = wrap(k,v))
+		return o
+	}
+		
+	let remote_mul = lambda('./lambda')
+
+	let kick = () => {
+		remote_mul.mul(2,3).then((result) => {
+			console.log(result)
+			return remote_mul.add(3,4)
+		}).then((result) => {
+			console.log(result)
+		}).catch((err) => {
+			console.error(err)
+		}).then(() => {
+			setTimeout(kick,3000)
 		})
 	}
 
-	let test = (func) => {
-		let ast = esprima.parse(String(func))	
-		let body = ast.body[0]
+	kick()
 
-		let main = (body) => {
-			let fns = _.filter(body.params,(p) => p.type == "Identifier" && check_func_call(p.name,body.body.body))
-
-			let find_modules = (body) => {
-				if (body.type == "BlockStatement") {
-					return _.compact(_.flatten(body.body.map((b) => find_modules(b))))
-				} else if (body.type == "VariableDeclaration") {
-					return _.compact(_.flatten(body.declarations.map((decl) => {
-						let init = decl.init
-						if (init && init.type == "CallExpression" && init.callee.type == "Identifier" && init.callee.name == "require") {
-							return init.arguments[0].value
-						}
-					})))
-				}
-			}
-
-			let meta = {
-				fns : fns.map((fn) => fn.name),
-				modules : find_modules(body.body)
-			}
-			console.log(meta)
-		}
-		if (body.type == "ExpressionStatement") {
-			if (body.expression.type == "ArrowFunctionExpression") {
-				main(body.expression)
-			}		
-		} else if (body.type == "FunctionDeclaration") {
-			main(body)
-		}
-		// console.log(JSON.stringify(ast,null,2))
-	}
-
-	let target = (next) => {
-		let _ = require('lodash')
-		_.any()
-		next()
-	}
-
-	test(target)
-
-	function hello(a,b,next) {
-		let _ = require('lodash')
-		_.any()
-		next()
-	}
-	test(hello)
 })()

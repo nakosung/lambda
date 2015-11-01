@@ -9,7 +9,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "adm-zip": "^0.4.7",
+    "ast-types": "^0.8.13",
+    "dnode": "^1.2.2",
+    "escodegen": "^1.7.0",
     "esprima": "^2.7.0",
-    "lodash": "^3.10.1"
+    "estraverse": "^4.1.1",
+    "lodash": "^3.10.1",
+    "mkdirp": "^0.5.1",
+    "rimraf": "^2.4.3"
   }
 }
